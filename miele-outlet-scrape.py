@@ -17,6 +17,7 @@ from tabulate import tabulate
 from io import BytesIO
 import argparse
 import json
+from datetime import datetime
 
 locale.setlocale(locale.LC_ALL, 'en_GB.UTF-8')
 
@@ -59,15 +60,22 @@ def parse_pdf(check_status):
     $
     """
 
+    update_pattern = r"Miele\ Outlet\ (?P<grade>[A-Z0-9]+)\ Grade\ Pricelist\ -\ Updated\ (?P<date>\d{2}\/\d{2}\/\d{4})"
+
     reader = load_pdf()
 
     matches = []
+    update_info = {}
 
     for page in reader.pages:
         text = page.extract_text()
         for line in text.splitlines():
             match = re.match(pattern, line, re.X)
-            if match:
+            update_match = re.match(update_pattern, line, re.X)
+            if update_match:
+                update_match_info = update_match.groupdict()
+                update_info[update_match_info['grade']] = update_match_info['date']
+            elif match:
                 match_dict = match.groupdict()
                 # Reformat the description to remove unwanted parts
                 split_description = [item.strip() for item in re.split(r"(GB|EU1)\b", match_dict['description'])]
@@ -103,7 +111,7 @@ def parse_pdf(check_status):
 
                 matches.append(match_dict)
 
-    return matches
+    return matches, update_info
 
 def filter_products(products, filter, grade, max_price):
     """
@@ -127,6 +135,8 @@ def filter_products(products, filter, grade, max_price):
     return filtered_products
 
 if __name__ == "__main__":
+    start_time = datetime.now()
+
     parser = argparse.ArgumentParser(description="Scrape Miele Outlet Pricelist PDF for heat pump products.")
     parser.add_argument("--filter", type=str, default="", help="Filter string for product search (default: empty string).")
     parser.add_argument("--json", action="store_true", help="Output results in JSON format.")
@@ -141,12 +151,18 @@ if __name__ == "__main__":
     parser.add_argument("--max-price", type=float, default=None, help="Maximum price to filter products (default: None).")
     args = parser.parse_args()
 
-    products = parse_pdf(args.check_status)
+    products, update_info = parse_pdf(args.check_status)
 
     matches = filter_products(products, args.filter, args.grade, args.max_price)
 
+    results_dict = {
+        "time": start_time.isoformat(),
+        "total": len(matches),
+        "update_info": update_info,
+        "products": matches
+    }
+
     if args.json:
-        import json
-        print(json.dumps(matches))
+        print(json.dumps(results_dict))
     else:
-        print(tabulate(matches, headers="keys", tablefmt="grid"))
+        print(tabulate(results_dict['products'], headers="keys", tablefmt="grid"))
