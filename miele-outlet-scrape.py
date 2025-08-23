@@ -44,7 +44,7 @@ def check_product_status(url):
     except requests.RequestException:
         return "Error"
 
-def parse_pdf(check_status):
+def parse_pdf():
     """
     Parses the Miele Outlet Pricelist PDF and extracts product information.
     Returns a list of matches containing product details.
@@ -64,7 +64,7 @@ def parse_pdf(check_status):
 
     reader = load_pdf()
 
-    matches = []
+    matches = {}
     update_info = {}
 
     for page in reader.pages:
@@ -76,7 +76,7 @@ def parse_pdf(check_status):
                 update_match_info = update_match.groupdict()
                 update_info[update_match_info['grade']] = update_match_info['date']
             elif match:
-                match_dict = match.groupdict()
+                match_dict = match.groupdict() 
                 # Reformat the description to remove unwanted parts
                 split_description = [item.strip() for item in re.split(r"(GB|EU1)\b", match_dict['description'])]
 
@@ -104,33 +104,50 @@ def parse_pdf(check_status):
                     match_dict['discounted_price'] = 0
                     match_dict['discount_rate'] = round((match_dict['rrp'] - match_dict['price']) / match_dict['rrp'] * 100, 2)
 
-                if check_status:
-                    match_dict['status'] = check_product_status(match_dict['url'])
-                else:
-                    match_dict['status'] = "Unknown"
+                product_id = match_dict['id']
 
-                matches.append(match_dict)
+                if product_id not in matches:
+                    matches[product_id] = {
+                        "url": match_dict['url'],
+                        "status": "Unknown",
+                        "available_units": []
+                    }
+
+                match_dict.pop('id')
+                match_dict.pop('url')
+                
+                matches[product_id]['available_units'].append(match_dict)
 
     return matches, update_info
 
-def filter_products(products, filter, grade, max_price):
+def filter_products(products, update_info, filter, grade, max_price, check_status):
     """
     Filters the list of products based on the provided filter string.
     Returns a list of filtered products.
     """
 
     filter_pattern = fr".*({filter}).*"
-    filtered_products = []
+    filtered_products = {}
 
-    for product in products:
-        if product['grade'] == grade or grade == "":
-            if re.match(filter_pattern, product['product_name'], re.IGNORECASE) or re.match(filter_pattern, product['description'], re.IGNORECASE):
-                if max_price is not None and product['price'] <= max_price:
-                    filtered_products.append(product)
-                elif max_price is not None and product['discounted_price'] != 0 and product['discounted_price'] <= max_price:
-                    filtered_products.append(product)
-                elif max_price is None:
-                    filtered_products.append(product)
+    for id, details in products.items():
+        available_units = details['available_units']
+        details.pop('available_units')
+        details['available_units'] = []
+        filtered_products[id] = details
+        for available_unit in available_units:
+            available_unit['updated'] = update_info.get(available_unit['grade'])
+            if available_unit['grade'] == grade or grade == "":
+                if re.match(filter_pattern, available_unit['product_name'], re.IGNORECASE) or re.match(filter_pattern, available_unit['description'], re.IGNORECASE):
+                    if max_price is not None and available_unit['price'] <= max_price:
+                        filtered_products[id]['available_units'].append(available_unit)
+                    elif max_price is not None and available_unit['discounted_price'] != 0 and available_unit['discounted_price'] <= max_price:
+                        filtered_products[id]['available_units'].append(available_unit)
+                    elif max_price is None:
+                        filtered_products[id]['available_units'].append(available_unit)
+        if len(filtered_products[id]['available_units']) == 0:
+            filtered_products.pop(id)
+        elif check_status:
+            filtered_products[id]['status'] = check_product_status(filtered_products[id]['url'])
 
     return filtered_products
 
@@ -151,18 +168,28 @@ if __name__ == "__main__":
     parser.add_argument("--max-price", type=float, default=None, help="Maximum price to filter products (default: None).")
     args = parser.parse_args()
 
-    products, update_info = parse_pdf(args.check_status)
+    products, update_info = parse_pdf()
 
-    matches = filter_products(products, args.filter, args.grade, args.max_price)
+    matches = filter_products(products, update_info, args.filter, args.grade, args.max_price, args.check_status)
 
     results_dict = {
         "time": start_time.isoformat(),
-        "total": len(matches),
-        "update_info": update_info,
         "products": matches
     }
 
     if args.json:
         print(json.dumps(results_dict))
     else:
-        print(tabulate(results_dict['products'], headers="keys", tablefmt="grid"))
+        table_data = []
+        for product_id, product_info in results_dict['products'].items():
+            metadata = product_info.copy()
+            metadata.pop('available_units')
+            for available_unit in product_info['available_units']:
+                newdict = available_unit | { 'id' : product_id } | metadata
+                newdict['rrp'] = locale.currency(newdict['rrp'], grouping=True)
+                newdict['price'] = locale.currency(newdict['price'], grouping=True)
+                newdict['discounted_price'] = locale.currency(newdict['discounted_price'], grouping=True) if newdict['discounted_price'] != 0 else "N/A"
+                newdict['discount_rate'] = f"{newdict['discount_rate']}%"
+                table_data.append(newdict)
+
+        print(tabulate(table_data, headers="keys", tablefmt="grid"))
