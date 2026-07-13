@@ -25,7 +25,11 @@ def load_pdf():
     Loads the Miele Outlet Pricelist PDF from the specified URL.
     Returns the content of the PDF as a BytesIO object.
     """
-    response = requests.get("https://application.miele.co.uk/resources/pdf/MieleOutletPricelist.pdf")
+    url = (
+        "https://miele365.sharepoint.com/:b:/s/GBOutlet/"
+        "IQB2ujUl_soIQYW1ibzienOFAargccbxP-Y1erenfKznmJk?download=1"
+    )
+    response = requests.get(url)
     response.raise_for_status()
     return PdfReader(BytesIO(response.content))
 

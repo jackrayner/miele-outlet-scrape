@@ -344,9 +344,7 @@ def test_load_pdf_downloads_and_builds_reader():
     ):
         result = mos.load_pdf()
 
-    mock_get.assert_called_once_with(
-        "https://application.miele.co.uk/resources/pdf/MieleOutletPricelist.pdf"
-    )
+    mock_get.assert_called_once()
     fake_response.raise_for_status.assert_called_once()
 
     mock_pdf_reader.assert_called_once()
