@@ -1,5 +1,9 @@
 # Miele Outlet UK PDF Price Scraper
 
+[![Lint](https://github.com/jackrayner/miele-outlet-scrape/actions/workflows/lint.yml/badge.svg)](https://github.com/jackrayner/miele-outlet-scrape/actions/workflows/lint.yml)
+[![Test](https://github.com/jackrayner/miele-outlet-scrape/actions/workflows/test.yml/badge.svg)](https://github.com/jackrayner/miele-outlet-scrape/actions/workflows/test.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 This script extracts pricing information from PDF files published by the Miele
 Outlet UK store.
 
@@ -11,12 +15,18 @@ Outlet UK store.
 ## Requirements
 
 - Python 3.x
-- `pypdf`
+- `pypdf`, `requests`, `tabulate`
 
 ## Usage
 
+```sh
+pipx run miele_outlet_scrape.py
 ```
-pipx run miele-outlet-scrape.py
+
+Or, with [uv](https://docs.astral.sh/uv/):
+
+```sh
+uv run miele_outlet_scrape.py
 ```
 
 ## Output
@@ -40,3 +50,12 @@ pipx run miele-outlet-scrape.py
 | 11871900 | TEL785WP EcoSpeed &Steam &9kg | B3      | £1,649.00 | £989.40   | £0.00              | 40.0%           | https://www.miele.co.uk/product/11871900 | Active   |
 +----------+-------------------------------+---------+-----------+-----------+--------------------+-----------------+------------------------------------------+----------+
 ```
+
+## Development
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setting up a dev environment, running
+tests, and linting.
+
+## License
+
+MIT - see [LICENSE](LICENSE).

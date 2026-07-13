@@ -1,0 +1,6 @@
+{
+  "default": true,
+  // README's example output table and the PDF regex pattern in the source
+  // run long; not a violation worth flagging.
+  "MD013": false
+}
