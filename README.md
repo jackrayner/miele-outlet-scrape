@@ -1,42 +1,65 @@
 # Miele Outlet UK PDF Price Scraper
 
+[![Lint](https://github.com/jackrayner/miele-outlet-scrape/actions/workflows/lint.yml/badge.svg)](https://github.com/jackrayner/miele-outlet-scrape/actions/workflows/lint.yml)
+[![Test](https://github.com/jackrayner/miele-outlet-scrape/actions/workflows/test.yml/badge.svg)](https://github.com/jackrayner/miele-outlet-scrape/actions/workflows/test.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 This script extracts pricing information from PDF files published by the Miele
 Outlet UK store.
 
 ## Features
 
-- Parses the Miele Outlet pricelist to retrieve product names and prices
-- Outputs data in a table or json format
+- Parses the Miele Outlet pricelist to retrieve product descriptions, grades, and prices
+- Filters by product name/description, grade (B1/B2/B3), and maximum price
+- Optionally checks whether each product's page is still live
+- Outputs data in a table or JSON format
 
 ## Requirements
 
 - Python 3.x
-- `pypdf`
+- `pypdf`, `requests`, `tabulate`
 
 ## Usage
 
+```sh
+pipx run miele_outlet_scrape.py
 ```
-pipx run miele-outlet-scrape.py
+
+Or, with [uv](https://docs.astral.sh/uv/):
+
+```sh
+uv run miele_outlet_scrape.py
 ```
+
+### Options
+
+| Flag             | Description                                                     |
+|------------------|-----------------------------------------------------------------|
+| `--filter TEXT`  | Match product name/description (case-insensitive, default: all) |
+| `--grade`        | Restrict to grade `B1`, `B2`, or `B3` (default: all grades)     |
+| `--max-price`    | Only include units at or under this price (post-discount too)   |
+| `--check-status` | Check whether each product's page is still live                 |
+| `--json`         | Output JSON instead of a table                                  |
 
 ## Output
 
+```sh
+python3 miele_outlet_scrape.py --filter "dishwash" --grade B1 --check-status
 ```
-+----------+-------------------------------+---------+-----------+-----------+--------------------+-----------------+------------------------------------------+----------+
-|       ID | Description                   | Grade   | RRP       | Price     | Discounted Price   | Discount Rate   | Link                                     | Status   |
-+==========+===============================+=========+===========+===========+====================+=================+==========================================+==========+
-| 11871890 | TCR780WP Eco &Steam &9kg      | B2      | £2,349.00 | £1,644.30 | £0.00              | 30.0%           | https://www.miele.co.uk/product/11871890 | Active   |
-+----------+-------------------------------+---------+-----------+-----------+--------------------+-----------------+------------------------------------------+----------+
-| 11871740 | TED265WP 8kg                  | B2      | £1,049.00 | £734.30   | £0.00              | 30.0%           | https://www.miele.co.uk/product/11871740 | Active   |
-+----------+-------------------------------+---------+-----------+-----------+--------------------+-----------------+------------------------------------------+----------+
-| 11871820 | TEF765WP EcoSpeed &8kg        | B2      | £1,249.00 | £874.30   | £0.00              | 30.0%           | https://www.miele.co.uk/product/11871820 | Active   |
-+----------+-------------------------------+---------+-----------+-----------+--------------------+-----------------+------------------------------------------+----------+
-| 11871830 | TEH785WP EcoSpeed &9kg        | B2      | £1,199.00 | £839.30   | £0.00              | 30.0%           | https://www.miele.co.uk/product/11871830 | Active   |
-+----------+-------------------------------+---------+-----------+-----------+--------------------+-----------------+------------------------------------------+----------+
-| 12719130 | TSA523WP 8kg Active           | B2      | £899.00   | £629.30   | £0.00              | 30.0%           | https://www.miele.co.uk/product/12719130 | Active   |
-+----------+-------------------------------+---------+-----------+-----------+--------------------+-----------------+------------------------------------------+----------+
-| 12719160 | TEC645WP EcoSpeed &8kg        | B3      | £949.00   | £569.40   | £0.00              | 40.0%           | https://www.miele.co.uk/product/12719160 | Active   |
-+----------+-------------------------------+---------+-----------+-----------+--------------------+-----------------+------------------------------------------+----------+
-| 11871900 | TEL785WP EcoSpeed &Steam &9kg | B3      | £1,649.00 | £989.40   | £0.00              | 40.0%           | https://www.miele.co.uk/product/11871900 | Active   |
-+----------+-------------------------------+---------+-----------+-----------+--------------------+-----------------+------------------------------------------+----------+
+
+```text
++---------------------------------------+---------+-----------+---------+--------------------+--------------------------------------------------+-----------------+------------+----------+------------------------------------------+----------+
+| description                           | grade   | rrp       | price   | discounted_price   | product_name                                     | discount_rate   | updated    |       id | url                                      | status   |
++=======================================+=========+===========+=========+====================+==================================================+=================+============+==========+==========================================+==========+
+| G 5450 SCVi Active Plus stainless ste | B1      | £1,149.00 | £919.20 | £749.00            | Fully integrated dishwashers 60 cm Product Sheet | 34.81%          | 13/07/2026 | 12656400 | https://www.miele.co.uk/product/12656400 | Active   |
++---------------------------------------+---------+-----------+---------+--------------------+--------------------------------------------------+-----------------+------------+----------+------------------------------------------+----------+
 ```
+
+## Development
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setting up a dev environment, running
+tests, and linting.
+
+## License
+
+MIT - see [LICENSE](LICENSE).
