@@ -29,23 +29,25 @@ def load_pdf():
         "https://miele365.sharepoint.com/:b:/s/GBOutlet/"
         "IQB2ujUl_soIQYW1ibzienOFAargccbxP-Y1erenfKznmJk?download=1"
     )
-    response = requests.get(url)
+    response = requests.get(url, timeout=30)
     response.raise_for_status()
     return PdfReader(BytesIO(response.content))
 
 def check_product_status(url):
     """
     Checks the status of a product URL.
-    Returns 'Active' if the product is available, 'Inactive' if it returns a 404 status code.
+    Returns 'Active' on a 200 response, 'Inactive' on a 404, and 'Error' for
+    anything else (timeouts, connection errors, or any other status code).
     """
     try:
-        response = requests.get(url)
-        if response.status_code == 404:
-            return "Inactive"
-        else:
-            return "Active"
+        response = requests.get(url, timeout=10)
     except requests.RequestException:
         return "Error"
+    if response.status_code == 200:
+        return "Active"
+    if response.status_code == 404:
+        return "Inactive"
+    return "Error"
 
 def parse_pdf():
     """
@@ -82,11 +84,25 @@ def parse_pdf():
                 update_match_info = update_match.groupdict()
                 update_info[update_match_info['grade']] = update_match_info['date']
             elif match:
-                match_dict = match.groupdict() 
-                # Reformat the description to remove unwanted parts
+                match_dict = match.groupdict()
+                # The pricelist's "Product Sheet" column is a hyperlink caption that
+                # gets extracted inline right before "Outlet ... Stock", e.g.
+                # "...dishwashers 60 cm Product Sheet" or, for items with no GB/EU1
+                # marker, "Coffee pot 1,0 l Accessories Coffee Product Sheet". Strip
+                # it before splitting so it doesn't end up in description/product_name.
+                description = re.sub(
+                    r"\s*Product Sheet\s*$", "", match_dict['description']
+                ).strip()
+
+                # Reformat the description to remove unwanted parts. Deliberately no
+                # \b before GB|EU1: some rows glue the marker straight onto a
+                # truncated word with no space (e.g. "...stainless steGB Fully
+                # integrated..."), and requiring a leading boundary there stops the
+                # split from firing at all, leaving the marker and everything after
+                # it stuck in the description.
                 split_description = [
                     item.strip()
-                    for item in re.split(r"(GB|EU1)\b", match_dict['description'])
+                    for item in re.split(r"(GB|EU1)\b", description)
                 ]
 
                 # Set the description to the first part of the split
@@ -144,7 +160,9 @@ def filter_products(products, update_info, filter, grade, max_price, check_statu
     Returns a list of filtered products.
     """
 
-    filter_pattern = fr".*({filter}).*"
+    # Treat the filter as a literal substring, not a regex - a plain search term
+    # like "8kg (Active)" would otherwise crash re.match with an unbalanced group.
+    filter_pattern = re.escape(filter)
     filtered_products = {}
 
     for id, details in products.items():
@@ -155,10 +173,10 @@ def filter_products(products, update_info, filter, grade, max_price, check_statu
         for available_unit in available_units:
             available_unit['updated'] = update_info.get(available_unit['grade'])
             if available_unit['grade'] == grade or grade == "":
-                name_match = re.match(
+                name_match = re.search(
                     filter_pattern, available_unit['product_name'], re.IGNORECASE
                 )
-                description_match = re.match(
+                description_match = re.search(
                     filter_pattern, available_unit['description'], re.IGNORECASE
                 )
                 if name_match or description_match:
