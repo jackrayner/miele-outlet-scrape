@@ -8,7 +8,6 @@ testable function and isn't worth the effort.
 from unittest.mock import MagicMock, patch
 
 import pytest
-import requests
 
 import miele_outlet_scrape as mos
 
@@ -413,7 +412,8 @@ def test_check_product_status_returns_error_on_other_status_codes():
 
 
 def test_check_product_status_returns_error_on_request_exception():
-    with patch.object(mos.requests, "get", side_effect=requests.RequestException("boom")):
+    exc = mos.requests.exceptions.RequestException("boom")
+    with patch.object(mos.requests, "get", side_effect=exc):
         assert mos.check_product_status("https://example.com/product/1") == "Error"
 
 
@@ -424,6 +424,18 @@ def test_check_product_status_passes_a_timeout():
 
     _args, kwargs = mock_get.call_args
     assert kwargs.get("timeout") is not None
+
+
+def test_check_product_status_impersonates_a_browser():
+    # This is the whole point of using curl_cffi here - a plain requests/httpx
+    # call gets a blanket 403 from Akamai's bot detection regardless of
+    # whether the product is genuinely live.
+    fake_response = MagicMock(status_code=200)
+    with patch.object(mos.requests, "get", return_value=fake_response) as mock_get:
+        mos.check_product_status("https://example.com/product/1")
+
+    _args, kwargs = mock_get.call_args
+    assert kwargs.get("impersonate") == "chrome"
 
 
 # ---------------------------------------------------------------------------
@@ -455,13 +467,13 @@ def test_load_pdf_downloads_and_builds_reader():
 
 def test_load_pdf_propagates_raise_for_status_errors():
     fake_response = MagicMock()
-    fake_response.raise_for_status.side_effect = requests.HTTPError("500 error")
+    fake_response.raise_for_status.side_effect = mos.requests.exceptions.HTTPError("500 error")
 
     with (
         patch.object(mos.requests, "get", return_value=fake_response),
         patch.object(mos, "PdfReader") as mock_pdf_reader,
     ):
-        with pytest.raises(requests.HTTPError):
+        with pytest.raises(mos.requests.exceptions.HTTPError):
             mos.load_pdf()
 
     mock_pdf_reader.assert_not_called()
