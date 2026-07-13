@@ -394,13 +394,13 @@ def test_filter_products_check_status_false_leaves_status_untouched():
 
 def test_check_product_status_returns_inactive_on_404():
     fake_response = MagicMock(status_code=404)
-    with patch.object(mos.requests, "get", return_value=fake_response):
+    with patch.object(mos.curl_requests, "get", return_value=fake_response):
         assert mos.check_product_status("https://example.com/product/1") == "Inactive"
 
 
 def test_check_product_status_returns_active_on_200():
     fake_response = MagicMock(status_code=200)
-    with patch.object(mos.requests, "get", return_value=fake_response):
+    with patch.object(mos.curl_requests, "get", return_value=fake_response):
         assert mos.check_product_status("https://example.com/product/1") == "Active"
 
 
@@ -408,22 +408,35 @@ def test_check_product_status_returns_error_on_other_status_codes():
     # A 5xx (or any non-200/404) response is not confidently "Active" - it
     # should be surfaced as an error, not silently reported as live.
     fake_response = MagicMock(status_code=500)
-    with patch.object(mos.requests, "get", return_value=fake_response):
+    with patch.object(mos.curl_requests, "get", return_value=fake_response):
         assert mos.check_product_status("https://example.com/product/1") == "Error"
 
 
 def test_check_product_status_returns_error_on_request_exception():
-    with patch.object(mos.requests, "get", side_effect=requests.RequestException("boom")):
+    exc = mos.curl_requests.exceptions.RequestException("boom")
+    with patch.object(mos.curl_requests, "get", side_effect=exc):
         assert mos.check_product_status("https://example.com/product/1") == "Error"
 
 
 def test_check_product_status_passes_a_timeout():
     fake_response = MagicMock(status_code=200)
-    with patch.object(mos.requests, "get", return_value=fake_response) as mock_get:
+    with patch.object(mos.curl_requests, "get", return_value=fake_response) as mock_get:
         mos.check_product_status("https://example.com/product/1")
 
     _args, kwargs = mock_get.call_args
     assert kwargs.get("timeout") is not None
+
+
+def test_check_product_status_impersonates_a_browser():
+    # This is the whole point of using curl_cffi here - a plain requests/httpx
+    # call gets a blanket 403 from Akamai's bot detection regardless of
+    # whether the product is genuinely live.
+    fake_response = MagicMock(status_code=200)
+    with patch.object(mos.curl_requests, "get", return_value=fake_response) as mock_get:
+        mos.check_product_status("https://example.com/product/1")
+
+    _args, kwargs = mock_get.call_args
+    assert kwargs.get("impersonate") == "chrome"
 
 
 # ---------------------------------------------------------------------------

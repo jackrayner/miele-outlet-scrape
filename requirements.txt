@@ -1,3 +1,4 @@
+curl_cffi
 pypdf
 requests
 tabulate

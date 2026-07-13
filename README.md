@@ -17,7 +17,7 @@ Outlet UK store.
 ## Requirements
 
 - Python 3.x
-- `pypdf`, `requests`, `tabulate`
+- `pypdf`, `requests`, `curl_cffi`, `tabulate`
 
 ## Usage
 
@@ -51,22 +51,9 @@ python3 miele_outlet_scrape.py --filter "dishwash" --grade B1 --check-status
 +---------------------------------------+---------+-----------+---------+--------------------+-------------------------------------+-----------------+------------+----------+------------------------------------------+----------+
 | description                           | grade   | rrp       | price   | discounted_price   | product_name                        | discount_rate   | updated    |       id | url                                      | status   |
 +=======================================+=========+===========+=========+====================+======================================+=================+============+==========+==========================================+==========+
-| G 5450 SCVi Active Plus stainless ste | B1      | £1,149.00 | £919.20 | £749.00            | Fully integrated dishwashers 60 cm  | 34.81%          | 13/07/2026 | 12656400 | https://www.miele.co.uk/product/12656400 | Error    |
+| G 5450 SCVi Active Plus stainless ste | B1      | £1,149.00 | £919.20 | £749.00            | Fully integrated dishwashers 60 cm  | 34.81%          | 13/07/2026 | 12656400 | https://www.miele.co.uk/product/12656400 | Inactive |
 +---------------------------------------+---------+-----------+---------+--------------------+-------------------------------------+-----------------+------------+----------+------------------------------------------+----------+
 ```
-
-`status` is `Error` here because `--check-status` is currently blocked by Miele's
-bot-detection on `www.miele.co.uk` (see Known limitations below) - the pricelist
-data itself is unaffected.
-
-## Known limitations
-
-- `--check-status` makes a plain `requests.get()` to each product page.
-  `www.miele.co.uk` runs bot-detection that returns `403` to it regardless of
-  whether the product is genuinely still listed (confirmed: the same URLs return
-  their real status, `200`/`404`/a redirect, to `curl`). Until that's worked
-  around, `--check-status` mostly reports `Error` rather than a meaningful
-  `Active`/`Inactive`.
 
 ## Development
 

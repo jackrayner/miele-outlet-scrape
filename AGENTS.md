@@ -67,14 +67,15 @@ works from `tests/` without installing the module.
   (e.g. `"...stainless steGB Fully integrated..."`), and a leading boundary stops the
   split from firing at all on those rows. Don't add one without re-testing against
   that exact case.
-- `check_product_status()` is currently not reliable: `www.miele.co.uk` runs
-  bot-detection that returns `403` to a plain `requests.get()` regardless of whether
-  the product is genuinely live (confirmed by comparing to `curl`, which gets the
-  real `200`/`404`/redirect for the same URL) — a browser-like `User-Agent` header
-  alone did not help, so it's likely TLS-fingerprint-based, not header-based.
-  `check_product_status()` reports this honestly as `"Error"` rather than guessing;
-  don't reintroduce the old bug of treating anything-but-404 as `"Active"` just to
-  make `--check-status` look like it's working.
+- `check_product_status()` uses `curl_cffi` (`impersonate="chrome"`), not plain
+  `requests` — `www.miele.co.uk` runs Akamai bot detection (`Server: AkamaiGHost`)
+  that returns a blanket `403` to a normal `requests`/`httpx` client regardless of
+  whether the product is genuinely live. Confirmed it's TLS-fingerprint-based, not
+  header-based: a browser-like `User-Agent` alone didn't help, and even `httpx` with
+  `http2=True` (matching `curl`'s HTTP/2 negotiation) still got `403`. Only a client
+  that replicates a real browser's TLS/HTTP2 fingerprint (`curl_cffi`, or the similar
+  `tls-client`) gets through. `load_pdf()` doesn't need this — SharePoint isn't
+  behind the same kind of bot detection, so it stays on plain `requests`.
 - Keep the PEP 723 inline dependency block at the top of `miele_outlet_scrape.py` in
   sync with `requirements.txt` — the former is what makes the script runnable
   standalone via `uv run`/`pipx run`; the latter is what CI and `requirements-dev.txt`
