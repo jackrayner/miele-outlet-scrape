@@ -55,6 +55,26 @@ works from `tests/` without installing the module.
   `&download=1` if it already has a query string); don't assume it's a network/sandbox
   block before checking that first, since a stale URL and a blocked host look identical
   from a timeout/error alone.
+- The pricelist's "Product Sheet" column is a hyperlink caption that `extract_text()`
+  inlines right before `Outlet <grade> Stock` on every row — `parse_pdf()` strips
+  `\s*Product Sheet\s*$` off the raw description before the GB/EU1 split. If a future
+  PDF layout change makes rows look wrong again, check the raw
+  `page.extract_text()` output first (see the live-verification steps used while
+  fixing this — reproduced via a quick `load_pdf()` + `extract_text()` call) before
+  assuming the regex itself is broken.
+- The GB/EU1 split (`re.split(r"(GB|EU1)\b", description)`) deliberately has no `\b`
+  before the marker: some rows glue it straight onto a truncated word with no space
+  (e.g. `"...stainless steGB Fully integrated..."`), and a leading boundary stops the
+  split from firing at all on those rows. Don't add one without re-testing against
+  that exact case.
+- `check_product_status()` is currently not reliable: `www.miele.co.uk` runs
+  bot-detection that returns `403` to a plain `requests.get()` regardless of whether
+  the product is genuinely live (confirmed by comparing to `curl`, which gets the
+  real `200`/`404`/redirect for the same URL) — a browser-like `User-Agent` header
+  alone did not help, so it's likely TLS-fingerprint-based, not header-based.
+  `check_product_status()` reports this honestly as `"Error"` rather than guessing;
+  don't reintroduce the old bug of treating anything-but-404 as `"Active"` just to
+  make `--check-status` look like it's working.
 - Keep the PEP 723 inline dependency block at the top of `miele_outlet_scrape.py` in
   sync with `requirements.txt` — the former is what makes the script runnable
   standalone via `uv run`/`pipx run`; the latter is what CI and `requirements-dev.txt`

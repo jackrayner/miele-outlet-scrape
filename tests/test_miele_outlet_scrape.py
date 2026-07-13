@@ -106,6 +106,61 @@ def test_parse_pdf_builds_matches_and_update_info():
     assert "url" not in unit_with_discount
 
 
+def test_parse_pdf_strips_product_sheet_boilerplate_with_marker():
+    # Real pricelist rows have a "Product Sheet" hyperlink caption extracted
+    # inline right before "Outlet ... Stock" - it must not leak into
+    # description/product_name.
+    page = (
+        "12656400 G 5450 SCVi Active Plus stainless steel GB Fully integrated "
+        "dishwashers 60 cm Product Sheet Outlet B1 Stock £1,149.00 £919.20 £749.00"
+    )
+    fake_reader = FakeReader([page])
+
+    with patch.object(mos, "load_pdf", return_value=fake_reader):
+        matches, _update_info = mos.parse_pdf()
+
+    unit = matches["12656400"]["available_units"][0]
+    assert unit["description"] == "G 5450 SCVi Active Plus stainless steel"
+    assert unit["product_name"] == "Fully integrated dishwashers 60 cm"
+    assert "Product Sheet" not in unit["description"]
+    assert "Product Sheet" not in unit["product_name"]
+
+
+def test_parse_pdf_strips_product_sheet_boilerplate_without_marker():
+    # Accessory rows have no GB/EU1 marker at all, so the whole description
+    # (including the "Product Sheet" suffix) stays in one piece pre-strip.
+    page = (
+        "10694310 Coffee pot 1,0 l Accessories Coffee Product Sheet "
+        "Outlet B1 Stock £200.49 £150.37"
+    )
+    fake_reader = FakeReader([page])
+
+    with patch.object(mos, "load_pdf", return_value=fake_reader):
+        matches, _update_info = mos.parse_pdf()
+
+    unit = matches["10694310"]["available_units"][0]
+    assert unit["description"] == "Coffee pot 1,0 l Accessories Coffee"
+    assert unit["product_name"] == ""
+    assert "Product Sheet" not in unit["description"]
+
+
+def test_parse_pdf_splits_gb_marker_glued_to_previous_word():
+    # Some rows have no space before the marker at all (a PDF text-extraction
+    # artifact) - the split must still fire in that case.
+    page = (
+        "12656400 G 5450 SCVi Active Plus stainless steGB Fully integrated "
+        "dishwashers 60 cm Product Sheet Outlet B1 Stock £1,149.00 £919.20 £749.00"
+    )
+    fake_reader = FakeReader([page])
+
+    with patch.object(mos, "load_pdf", return_value=fake_reader):
+        matches, _update_info = mos.parse_pdf()
+
+    unit = matches["12656400"]["available_units"][0]
+    assert unit["description"] == "G 5450 SCVi Active Plus stainless ste"
+    assert unit["product_name"] == "Fully integrated dishwashers 60 cm"
+
+
 def test_parse_pdf_ignores_non_matching_lines_only():
     page = "\n".join(
         [
@@ -264,6 +319,32 @@ def test_filter_products_max_price_excludes_when_neither_price_qualifies():
     assert result == {}
 
 
+def test_filter_products_filter_with_regex_metacharacters_does_not_crash():
+    # A plain search term containing regex metacharacters must not be
+    # interpreted as a regex (previously crashed with an unbalanced group).
+    products = _make_products(
+        {
+            "1": [_make_unit("Washer (8kg)", "Duoflex", "B1", 100.0)],
+        }
+    )
+    result = mos.filter_products(products, {}, "(8kg)", "", None, False)
+
+    assert set(result.keys()) == {"1"}
+
+
+def test_filter_products_filter_matches_literally_not_as_regex():
+    # "." in the filter must match a literal dot, not "any character".
+    products = _make_products(
+        {
+            "1": [_make_unit("Model X.1", "Duoflex", "B1", 100.0)],
+            "2": [_make_unit("Model XY1", "Duoflex", "B2", 100.0)],
+        }
+    )
+    result = mos.filter_products(products, {}, "X.1", "", None, False)
+
+    assert set(result.keys()) == {"1"}
+
+
 def test_filter_products_drops_products_with_no_matching_units():
     products = _make_products(
         {
@@ -323,9 +404,26 @@ def test_check_product_status_returns_active_on_200():
         assert mos.check_product_status("https://example.com/product/1") == "Active"
 
 
+def test_check_product_status_returns_error_on_other_status_codes():
+    # A 5xx (or any non-200/404) response is not confidently "Active" - it
+    # should be surfaced as an error, not silently reported as live.
+    fake_response = MagicMock(status_code=500)
+    with patch.object(mos.requests, "get", return_value=fake_response):
+        assert mos.check_product_status("https://example.com/product/1") == "Error"
+
+
 def test_check_product_status_returns_error_on_request_exception():
     with patch.object(mos.requests, "get", side_effect=requests.RequestException("boom")):
         assert mos.check_product_status("https://example.com/product/1") == "Error"
+
+
+def test_check_product_status_passes_a_timeout():
+    fake_response = MagicMock(status_code=200)
+    with patch.object(mos.requests, "get", return_value=fake_response) as mock_get:
+        mos.check_product_status("https://example.com/product/1")
+
+    _args, kwargs = mock_get.call_args
+    assert kwargs.get("timeout") is not None
 
 
 # ---------------------------------------------------------------------------
@@ -345,6 +443,8 @@ def test_load_pdf_downloads_and_builds_reader():
         result = mos.load_pdf()
 
     mock_get.assert_called_once()
+    _args, kwargs = mock_get.call_args
+    assert kwargs.get("timeout") is not None
     fake_response.raise_for_status.assert_called_once()
 
     mock_pdf_reader.assert_called_once()
