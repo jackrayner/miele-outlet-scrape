@@ -44,12 +44,18 @@ works from `tests/` without installing the module.
 ## Conventions
 
 - No comments except where a genuine non-obvious constraint exists.
+- There is no PyPI `requests` dependency in this project despite the `requests.get(...)`
+  calls throughout the file — `import requests` is actually
+  `from curl_cffi import requests`, a drop-in-compatible module that also supports
+  `impersonate=`. Don't add the real `requests` package back as a dependency; if you
+  need something it doesn't have, it's probably on `curl_cffi`'s version already.
 - `load_pdf()`'s URL is a Miele365 SharePoint anonymous share link
   (`https://miele365.sharepoint.com/:b:/s/GBOutlet/...`) with `?download=1` appended —
   without that param the same link 302s to an HTML document-library view page instead
-  of the raw PDF. A plain `requests.get(url)` is enough (no manual `Session`/cookie jar
-  needed): SharePoint's redirect chain sets a `FedAuth` cookie and requests follows
-  redirects within a single call, carrying cookies along automatically. If this URL
+  of the raw PDF. A plain `requests.get(url)` (no `impersonate` needed) is enough
+  (no manual `Session`/cookie jar needed): SharePoint's redirect chain sets a
+  `FedAuth` cookie and requests follows redirects within a single call, carrying
+  cookies along automatically. If this URL
   ever starts 401ing or timing out again, it's moved — ask for (or find) the current
   share link from Miele's outlet team/portal and re-append `?download=1` (or
   `&download=1` if it already has a query string); don't assume it's a network/sandbox
@@ -67,15 +73,15 @@ works from `tests/` without installing the module.
   (e.g. `"...stainless steGB Fully integrated..."`), and a leading boundary stops the
   split from firing at all on those rows. Don't add one without re-testing against
   that exact case.
-- `check_product_status()` uses `curl_cffi` (`impersonate="chrome"`), not plain
-  `requests` — `www.miele.co.uk` runs Akamai bot detection (`Server: AkamaiGHost`)
-  that returns a blanket `403` to a normal `requests`/`httpx` client regardless of
-  whether the product is genuinely live. Confirmed it's TLS-fingerprint-based, not
-  header-based: a browser-like `User-Agent` alone didn't help, and even `httpx` with
-  `http2=True` (matching `curl`'s HTTP/2 negotiation) still got `403`. Only a client
-  that replicates a real browser's TLS/HTTP2 fingerprint (`curl_cffi`, or the similar
-  `tls-client`) gets through. `load_pdf()` doesn't need this — SharePoint isn't
-  behind the same kind of bot detection, so it stays on plain `requests`.
+- `check_product_status()` passes `impersonate="chrome"` because
+  `www.miele.co.uk` runs Akamai bot detection (`Server: AkamaiGHost`) that returns a
+  blanket `403` to a normal client regardless of whether the product is genuinely
+  live. Confirmed it's TLS-fingerprint-based, not header-based: a browser-like
+  `User-Agent` alone didn't help, and even `httpx` with `http2=True` (matching
+  `curl`'s HTTP/2 negotiation) still got `403`. Only a client that replicates a real
+  browser's TLS/HTTP2 fingerprint (`curl_cffi`, or the similar `tls-client`) gets
+  through. `load_pdf()` doesn't pass `impersonate` — SharePoint isn't behind the
+  same kind of bot detection, so a plain request is enough there.
 - Keep the PEP 723 inline dependency block at the top of `miele_outlet_scrape.py` in
   sync with `requirements.txt` — the former is what makes the script runnable
   standalone via `uv run`/`pipx run`; the latter is what CI and `requirements-dev.txt`

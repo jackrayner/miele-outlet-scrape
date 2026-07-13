@@ -17,7 +17,7 @@ Outlet UK store.
 ## Requirements
 
 - Python 3.x
-- `pypdf`, `requests`, `curl_cffi`, `tabulate`
+- `pypdf`, `curl_cffi`, `tabulate`
 
 ## Usage
 

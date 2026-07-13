@@ -8,7 +8,6 @@ testable function and isn't worth the effort.
 from unittest.mock import MagicMock, patch
 
 import pytest
-import requests
 
 import miele_outlet_scrape as mos
 
@@ -394,13 +393,13 @@ def test_filter_products_check_status_false_leaves_status_untouched():
 
 def test_check_product_status_returns_inactive_on_404():
     fake_response = MagicMock(status_code=404)
-    with patch.object(mos.curl_requests, "get", return_value=fake_response):
+    with patch.object(mos.requests, "get", return_value=fake_response):
         assert mos.check_product_status("https://example.com/product/1") == "Inactive"
 
 
 def test_check_product_status_returns_active_on_200():
     fake_response = MagicMock(status_code=200)
-    with patch.object(mos.curl_requests, "get", return_value=fake_response):
+    with patch.object(mos.requests, "get", return_value=fake_response):
         assert mos.check_product_status("https://example.com/product/1") == "Active"
 
 
@@ -408,19 +407,19 @@ def test_check_product_status_returns_error_on_other_status_codes():
     # A 5xx (or any non-200/404) response is not confidently "Active" - it
     # should be surfaced as an error, not silently reported as live.
     fake_response = MagicMock(status_code=500)
-    with patch.object(mos.curl_requests, "get", return_value=fake_response):
+    with patch.object(mos.requests, "get", return_value=fake_response):
         assert mos.check_product_status("https://example.com/product/1") == "Error"
 
 
 def test_check_product_status_returns_error_on_request_exception():
-    exc = mos.curl_requests.exceptions.RequestException("boom")
-    with patch.object(mos.curl_requests, "get", side_effect=exc):
+    exc = mos.requests.exceptions.RequestException("boom")
+    with patch.object(mos.requests, "get", side_effect=exc):
         assert mos.check_product_status("https://example.com/product/1") == "Error"
 
 
 def test_check_product_status_passes_a_timeout():
     fake_response = MagicMock(status_code=200)
-    with patch.object(mos.curl_requests, "get", return_value=fake_response) as mock_get:
+    with patch.object(mos.requests, "get", return_value=fake_response) as mock_get:
         mos.check_product_status("https://example.com/product/1")
 
     _args, kwargs = mock_get.call_args
@@ -432,7 +431,7 @@ def test_check_product_status_impersonates_a_browser():
     # call gets a blanket 403 from Akamai's bot detection regardless of
     # whether the product is genuinely live.
     fake_response = MagicMock(status_code=200)
-    with patch.object(mos.curl_requests, "get", return_value=fake_response) as mock_get:
+    with patch.object(mos.requests, "get", return_value=fake_response) as mock_get:
         mos.check_product_status("https://example.com/product/1")
 
     _args, kwargs = mock_get.call_args
@@ -468,13 +467,13 @@ def test_load_pdf_downloads_and_builds_reader():
 
 def test_load_pdf_propagates_raise_for_status_errors():
     fake_response = MagicMock()
-    fake_response.raise_for_status.side_effect = requests.HTTPError("500 error")
+    fake_response.raise_for_status.side_effect = mos.requests.exceptions.HTTPError("500 error")
 
     with (
         patch.object(mos.requests, "get", return_value=fake_response),
         patch.object(mos, "PdfReader") as mock_pdf_reader,
     ):
-        with pytest.raises(requests.HTTPError):
+        with pytest.raises(mos.requests.exceptions.HTTPError):
             mos.load_pdf()
 
     mock_pdf_reader.assert_not_called()

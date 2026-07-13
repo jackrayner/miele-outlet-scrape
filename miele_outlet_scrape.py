@@ -4,7 +4,6 @@
 # dependencies = [
 #   "curl_cffi",
 #   "pypdf",
-#   "requests",
 #   "tabulate",
 # ]
 # ///
@@ -16,8 +15,7 @@ import re
 from datetime import datetime
 from io import BytesIO
 
-import requests
-from curl_cffi import requests as curl_requests
+from curl_cffi import requests
 from pypdf import PdfReader
 from tabulate import tabulate
 
@@ -41,15 +39,15 @@ def check_product_status(url):
     Returns 'Active' on a 200 response, 'Inactive' on a 404, and 'Error' for
     anything else (timeouts, connection errors, or any other status code).
 
-    Uses curl_cffi with a Chrome TLS/HTTP2 fingerprint instead of plain
-    requests: www.miele.co.uk's Akamai bot detection returns a blanket 403
-    to a normal requests/httpx client regardless of whether the product is
-    genuinely live - it's fingerprinting the TLS handshake itself, not
+    Passes impersonate="chrome" (a curl_cffi feature the requests library
+    doesn't have) because www.miele.co.uk's Akamai bot detection returns a
+    blanket 403 to a normal client regardless of whether the product is
+    genuinely live - it's fingerprinting the TLS/HTTP2 handshake itself, not
     inspecting headers, so no header alone (User-Agent included) gets past it.
     """
     try:
-        response = curl_requests.get(url, timeout=10, impersonate="chrome")
-    except curl_requests.exceptions.RequestException:
+        response = requests.get(url, timeout=10, impersonate="chrome")
+    except requests.exceptions.RequestException:
         return "Error"
     if response.status_code == 200:
         return "Active"
